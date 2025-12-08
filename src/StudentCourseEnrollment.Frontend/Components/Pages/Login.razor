@@ -1,0 +1,261 @@
+@page "/login"
+@using StudentCourseEnrollment.Shared.DTOs.Auth
+@using StudentCourseEnrollment.Frontend.Clients
+@using StudentCourseEnrollment.Frontend.Helpers
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Microsoft.AspNetCore.Components.WebAssembly.Hosting
+@using System.Security.Claims
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [AllowAnonymous]
+@inject IAuthClient AuthClient
+@inject NavigationManager Navigation
+@inject IWebAssemblyHostEnvironment HostEnvironment
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Login</PageTitle>
+
+@if (HostEnvironment.IsProduction() && IsEntraIdConfigured())
+{
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-body p-4 text-center">
+                        <h2 class="mb-4">Sign in with Microsoft</h2>
+                        <p class="mb-4">Redirecting to Microsoft Entra ID...</p>
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-body p-4">
+                        <h2 class="text-center mb-4">Login</h2>
+                    
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                            @_errorMessage
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="() => { _errorMessage = string.Empty; StateHasChanged(); }"></button>
+                        </div>
+                    }
+                    
+                    <form @onsubmit="@HandleFormSubmit" @onsubmit:preventDefault="true">
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input @bind="_loginModel.Email" 
+                                   id="email" 
+                                   class="form-control" 
+                                   type="email" 
+                                   required />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <div class="input-group">
+                                <input @bind="_loginModel.Password" 
+                                       id="password" 
+                                       class="form-control" 
+                                       type="@(showPassword ? "text" : "password")" 
+                                       required />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="TogglePasswordVisibility">
+                                    @if (showPassword)
+                                    {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye-slash" viewBox="0 0 16 16">
+                                            <path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.944 5.944 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/>
+                                            <path d="M11.297 9.176a3.087 3.087 0 0 0-4.24-4.24l.823.823a2.5 2.5 0 0 1 2.829 2.829zm-2.715 2.715a2.5 2.5 0 0 1-2.83-2.83l.823-.823a3.087 3.087 0 0 0 4.24 4.24z"/>
+                                            <path d="M3.35 5.47c-.18.16-.353.322-.518.487A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709zm10.296 8.884-12-12 .708-.708 12 12-.708.708z"/>
+                                        </svg>
+                                    }
+                                    else
+                                    {
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+                                            <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5c-2.12 0-3.879-1.168-5.168-2.457A13.134 13.134 0 0 1 1.172 8z"/>
+                                            <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+                                        </svg>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" 
+                                class="btn btn-primary w-100 mb-3" 
+                                disabled="@_isSubmitting">
+                            @if (_isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span>Logging in...</span>
+                            }
+                            else
+                            {
+                                <span>Login</span>
+                            }
+                        </button>
+                    </form>
+
+                        <div class="text-center">
+                            Don't have an account? <a href="/register">Register here</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Inject] private StudentCourseEnrollment.Frontend.Services.CustomAuthenticationStateProvider? AuthStateProvider { get; set; }
+    [Inject] private IConfiguration? Configuration { get; set; }
+    
+    private LoginModel _loginModel = new();
+    private string _errorMessage = string.Empty;
+    private bool _isSubmitting = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && HostEnvironment.IsProduction() && IsEntraIdConfigured())
+        {
+            await Task.Yield();
+            try
+            {
+                Navigation.NavigateToLogin("authentication/login");
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private bool IsEntraIdConfigured()
+    {
+        if (Configuration == null) return false;
+        var authority = Configuration["AzureAd:Authority"];
+        var clientId = Configuration["AzureAd:ClientId"];
+        return !string.IsNullOrEmpty(authority) && !string.IsNullOrEmpty(clientId);
+    }
+
+    private async Task HandleFormSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(_loginModel.Email) || string.IsNullOrWhiteSpace(_loginModel.Password))
+        {
+            _errorMessage = "Please fill in all required fields.";
+            StateHasChanged();
+            return;
+        }
+
+        var emailAttribute = new EmailAddressAttribute();
+        if (!emailAttribute.IsValid(_loginModel.Email))
+        {
+            _errorMessage = "Please enter a valid email address.";
+            StateHasChanged();
+            return;
+        }
+
+        await HandleLogin();
+    }
+
+    private async Task HandleLogin()
+    {
+        _errorMessage = string.Empty;
+        _isSubmitting = true;
+        StateHasChanged();
+
+        try
+        {
+            var loginRequest = new LoginRequest(_loginModel.Email, _loginModel.Password);
+            var response = await AuthClient.LoginAsync(loginRequest);
+            
+            if (response != null)
+            {
+                var claims = JwtTokenHelper.ParseClaimsFromJwt(response.Token);
+                
+                if (!claims.Any(c => c.Type == ClaimTypes.NameIdentifier))
+                {
+                    claims.Add(new Claim(ClaimTypes.NameIdentifier, response.Id.ToString()));
+                }
+                
+                if (!claims.Any(c => c.Type == ClaimTypes.Email))
+                {
+                    claims.Add(new Claim(ClaimTypes.Email, response.Email));
+                }
+                
+                var fullName = $"{response.FirstName} {response.LastName}".Trim();
+                if (!claims.Any(c => c.Type == ClaimTypes.Name))
+                {
+                    claims.Add(new Claim(ClaimTypes.Name, fullName));
+                }
+                if (!claims.Any(c => c.Type == "FirstName"))
+                {
+                    claims.Add(new Claim("FirstName", response.FirstName));
+                }
+                if (!claims.Any(c => c.Type == "LastName"))
+                {
+                    claims.Add(new Claim("LastName", response.LastName));
+                }
+
+                var identity = new ClaimsIdentity(claims, "jwt", ClaimTypes.Name, ClaimTypes.Role);
+                var user = new ClaimsPrincipal(identity);
+
+                if (AuthStateProvider != null)
+                {
+                    await AuthStateProvider.SetAuthenticationStateAsync(user, response.Token);
+                }
+                
+                _isSubmitting = false;
+                StateHasChanged();
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                _errorMessage = "Invalid email or password.";
+                _isSubmitting = false;
+                StateHasChanged();
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _errorMessage = !string.IsNullOrWhiteSpace(ex.Message) ? ex.Message : "Invalid email or password. Please try again.";
+            _isSubmitting = false;
+            StateHasChanged();
+            await JSRuntime.InvokeVoidAsync("alert", _errorMessage);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+            _isSubmitting = false;
+            StateHasChanged();
+            await JSRuntime.InvokeVoidAsync("alert", _errorMessage);
+        }
+    }
+
+    private bool showPassword = false;
+
+    private void TogglePasswordVisibility()
+    {
+        showPassword = !showPassword;
+    }
+
+
+    private class LoginModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        public string Password { get; set; } = string.Empty;
+    }
+}

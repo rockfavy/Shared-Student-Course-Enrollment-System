@@ -1,0 +1,231 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+      - '*.md'
+
+pool:
+  name: 'default'
+
+variables:
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  projects: '**/*.csproj'
+  testProjects: '**/tests/**/*.csproj'
+  azureSubscription: 'Azure-Service-Connection'
+  appServiceName: 'app-studentcourseenrollment-prod'
+  appServiceSlot: 'staging'
+  resourceGroupName: 'rg-studentcourseenrollment-prod'
+
+stages:
+  - stage: Build
+    displayName: 'Build Solution'
+    jobs:
+      - job: Build
+        displayName: 'Build and Package'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet packages'
+            inputs:
+              command: 'restore'
+              projects: '$(solution)'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build solution (Release)'
+            inputs:
+              command: 'build'
+              projects: '$(solution)'
+              arguments: '--configuration $(buildConfiguration) --no-restore'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish API project'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/StudentCourseEnrollment.Api/StudentCourseEnrollment.Api.csproj'
+              arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/Api --no-build'
+              zipAfterPublish: false
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish Frontend project'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/StudentCourseEnrollment.Frontend/StudentCourseEnrollment.Frontend.csproj'
+              arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/Frontend --no-build'
+              zipAfterPublish: false
+
+          - task: ArchiveFiles@2
+            displayName: 'Create deployment package'
+            inputs:
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/deployment.zip'
+              replaceExistingArchive: true
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish artifacts'
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)'
+              artifactName: 'drop'
+
+  - stage: Test
+    displayName: 'Run Tests'
+    dependsOn: Build
+    jobs:
+      - job: UnitTests
+        displayName: 'Run Unit Tests'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore test projects'
+            inputs:
+              command: 'restore'
+              projects: '**/tests/**/*.csproj'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run unit tests'
+            inputs:
+              command: 'test'
+              projects: '**/tests/**/StudentCourseEnrollment.Tests.Unit/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/TestResults'
+              publishTestResults: true
+
+      - job: IntegrationTests
+        displayName: 'Run Integration Tests'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore test projects'
+            inputs:
+              command: 'restore'
+              projects: '**/tests/**/*.csproj'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run integration tests'
+            inputs:
+              command: 'test'
+              projects: '**/tests/**/StudentCourseEnrollment.Tests.Integration/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/TestResults'
+              publishTestResults: true
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish code coverage'
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml'
+              reportDirectory: '$(Agent.TempDirectory)/TestResults'
+
+  - stage: Deploy
+    displayName: 'Deploy to Production'
+    dependsOn: Test
+    condition: succeeded()
+    jobs:
+      - deployment: DeployToProduction
+        displayName: 'Deploy to Production'
+        environment: 'Production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: DownloadBuildArtifacts@0
+                  displayName: 'Download build artifacts'
+                  inputs:
+                    buildType: 'current'
+                    downloadType: 'single'
+                    artifactName: 'drop'
+                    downloadPath: '$(System.ArtifactsDirectory)'
+
+                - task: AzureWebApp@1
+                  displayName: 'Deploy API to staging slot'
+                  inputs:
+                    azureSubscription: '$(azureSubscription)'
+                    appType: 'webApp'
+                    appName: '$(appServiceName)'
+                    package: '$(System.ArtifactsDirectory)/drop/**/*.zip'
+                    deploymentMethod: 'auto'
+                    slotName: '$(appServiceSlot)'
+
+                - task: PowerShell@2
+                  displayName: 'Run smoke tests on staging slot'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      $stagingUrl = "https://$(appServiceName)-$(appServiceSlot).azurewebsites.net"
+                      Write-Host "Running smoke tests on staging slot: $stagingUrl"
+                      
+                      try {
+                        $response = Invoke-WebRequest -Uri "$stagingUrl/" -Method Get -TimeoutSec 30
+                        if ($response.StatusCode -eq 200) {
+                          Write-Host "Smoke test passed: Application is responding"
+                        } else {
+                          Write-Host "Smoke test failed: Unexpected status code $($response.StatusCode)"
+                          exit 1
+                        }
+                      } catch {
+                        Write-Host "Smoke test failed: $_"
+                        exit 1
+                    failOnStderr: true
+
+                - task: AzureAppServiceManage@0
+                  displayName: 'Swap staging and production slots'
+                  inputs:
+                    azureSubscription: '$(azureSubscription)'
+                    action: 'Swap Slots'
+                    webAppName: '$(appServiceName)'
+                    sourceSlot: '$(appServiceSlot)'
+                    swapWithProduction: true
+
+                - task: PowerShell@2
+                  displayName: 'Run post-swap health checks'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      $productionUrl = "https://$(appServiceName).azurewebsites.net"
+                      Write-Host "Running health checks on production: $productionUrl"
+                      
+                      try {
+                        $response = Invoke-WebRequest -Uri "$productionUrl/" -Method Get -TimeoutSec 30
+                        if ($response.StatusCode -eq 200) {
+                          Write-Host "Health check passed: Production application is responding"
+                        } else {
+                          Write-Host "Health check failed: Unexpected status code $($response.StatusCode)"
+                          Write-Host "Initiating rollback..."
+                          exit 1
+                        }
+                      } catch {
+                        Write-Host "Health check failed: $_"
+                        Write-Host "Initiating rollback..."
+                        exit 1
+                    failOnStderr: true
+
+                - task: PowerShell@2
+                  displayName: 'Notify stakeholders'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      Write-Host "Production deployment completed successfully"
+                      Write-Host "Build: $(Build.BuildNumber)"
+                      Write-Host "Commit: $(Build.SourceVersion)"
+                      Write-Host "Deployed by: $(Build.RequestedFor)"
+

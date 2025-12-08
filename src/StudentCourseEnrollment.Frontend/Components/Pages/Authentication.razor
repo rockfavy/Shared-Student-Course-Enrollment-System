@@ -1,0 +1,54 @@
+@page "/authentication/{action}"
+@using Microsoft.AspNetCore.Components.WebAssembly.Authentication
+@using Microsoft.AspNetCore.Components.Authorization
+@using StudentCourseEnrollment.Frontend.Clients
+@using Microsoft.AspNetCore.Components.WebAssembly.Hosting
+@inject NavigationManager Navigation
+@inject IAuthClient AuthClient
+@inject IWebAssemblyHostEnvironment HostEnvironment
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<RemoteAuthenticatorView Action="@Action">
+    <LoggingIn>
+        <div class="text-center p-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Signing in...</span>
+            </div>
+            <p class="mt-2">Redirecting to Microsoft Entra ID...</p>
+        </div>
+    </LoggingIn>
+    <CompletingLoggingIn>
+        <div class="text-center p-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Completing sign in...</span>
+            </div>
+            <p class="mt-2">Completing sign in...</p>
+        </div>
+    </CompletingLoggingIn>
+</RemoteAuthenticatorView>
+
+@code {
+    [Parameter]
+    public string? Action { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Action == "login-callback" && HostEnvironment.IsProduction())
+        {
+            await Task.Delay(500);
+            
+            try
+            {
+                var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+                if (authState?.User?.Identity?.IsAuthenticated == true)
+                {
+                    await AuthClient.ProvisionUserAsync();
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+}
+

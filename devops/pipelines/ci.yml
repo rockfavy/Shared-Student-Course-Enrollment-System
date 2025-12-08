@@ -1,0 +1,134 @@
+trigger:
+  branches:
+    include:
+      - feature
+  paths:
+    exclude:
+      - README.md
+      - '*.md'
+
+pool:
+  name: 'default'
+
+variables:
+  buildConfiguration: 'Release'
+  solution: '**/*.sln'
+  projects: '**/*.csproj'
+  testProjects: '**/tests/**/*.csproj'
+
+stages:
+  - stage: Build
+    displayName: 'Build Solution'
+    jobs:
+      - job: Build
+        displayName: 'Build and Package'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore NuGet packages'
+            inputs:
+              command: 'restore'
+              projects: '$(solution)'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Build solution'
+            inputs:
+              command: 'build'
+              projects: '$(solution)'
+              arguments: '--configuration $(buildConfiguration) --no-restore'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish API project'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/StudentCourseEnrollment.Api/StudentCourseEnrollment.Api.csproj'
+              arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/Api --no-build'
+              zipAfterPublish: false
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Publish Frontend project'
+            inputs:
+              command: 'publish'
+              publishWebProjects: false
+              projects: 'src/StudentCourseEnrollment.Frontend/StudentCourseEnrollment.Frontend.csproj'
+              arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/Frontend --no-build'
+              zipAfterPublish: false
+
+          - task: ArchiveFiles@2
+            displayName: 'Create deployment package'
+            inputs:
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+              includeRootFolder: false
+              archiveType: 'zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)/deployment.zip'
+              replaceExistingArchive: true
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish artifacts'
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)'
+              artifactName: 'drop'
+
+  - stage: Test
+    displayName: 'Run Tests'
+    dependsOn: Build
+    jobs:
+      - job: UnitTests
+        displayName: 'Run Unit Tests'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore test projects'
+            inputs:
+              command: 'restore'
+              projects: '**/tests/**/*.csproj'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run unit tests'
+            inputs:
+              command: 'test'
+              projects: '**/tests/**/StudentCourseEnrollment.Tests.Unit/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/TestResults'
+              publishTestResults: true
+
+      - job: IntegrationTests
+        displayName: 'Run Integration Tests'
+        steps:
+          - task: UseDotNet@2
+            displayName: 'Use .NET SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '8.x'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Restore test projects'
+            inputs:
+              command: 'restore'
+              projects: '**/tests/**/*.csproj'
+
+          - task: DotNetCoreCLI@2
+            displayName: 'Run integration tests'
+            inputs:
+              command: 'test'
+              projects: '**/tests/**/StudentCourseEnrollment.Tests.Integration/*.csproj'
+              arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/TestResults'
+              publishTestResults: true
+
+          - task: PublishCodeCoverageResults@1
+            displayName: 'Publish code coverage'
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(Agent.TempDirectory)/TestResults/**/coverage.cobertura.xml'
+              reportDirectory: '$(Agent.TempDirectory)/TestResults'
+

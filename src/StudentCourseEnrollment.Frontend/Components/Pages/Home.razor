@@ -1,0 +1,79 @@
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using StudentCourseEnrollment.Shared
+@attribute [AllowAnonymous]
+
+<PageTitle>Home</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="text-center mb-5">
+                <h1 class="display-4 mb-3">Student Course Enrollment System</h1>
+                <p class="lead text-muted">Manage your course enrollments with ease</p>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="mb-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-book text-primary" viewBox="0 0 16 16">
+                                    <path d="M1 2.828c.885-.37 2.154-.769 3.3-.893 1.4-.134 2.933.063 4 .115v10.587c-.933-.15-2.573-.29-4-.327v1.747c1.395-.236 2.73-.395 4-.418v-9.273c.8-.206 1.623-.292 2.5-.292.376 0 .754.052 1.122.145.39.104.785.26 1.128.463v9.465c-.935-.53-2.12-.603-3.213-.493-1.18.12-2.37.461-3.287.811V2.828zm7.5-.141c.654-.689 1.782-.886 3.112-.752 1.234.124 2.503.523 3.388.893v9.923c-.918-.35-2.107-.692-3.287-.81-1.094-.111-2.278-.039-3.213.492V2.687zM8 1.783C7.015.936 5.587.81 4.287.94c-1.514.153-3.042.672-3.994 1.105A.5.5 0 0 0 0 2.5v11a.5.5 0 0 0 .707.455c.882-.4 2.303-.881 3.68-1.02 1.409-.142 2.59.087 3.223.877a.5.5 0 0 0 .78 0c.633-.79 1.814-1.019 3.222-.877 1.378.139 2.8.62 3.681 1.02A.5.5 0 0 0 16 13.5v-11a.5.5 0 0 0-.293-.455c-.952-.433-2.48-.952-3.994-1.105C10.413.81 8.985.936 8 1.783z"/>
+                                </svg>
+                            </div>
+                            <h5 class="card-title">Available Courses</h5>
+                            <p class="card-text text-muted">Browse and explore all available courses</p>
+                            <a href="/courses" class="btn btn-primary">View Courses</a>
+                        </div>
+                    </div>
+                </div>
+
+                <AuthorizeView Roles="@Role.Student.ToString()">
+                    <Authorized>
+                        <div class="col-md-6">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-clipboard-check text-success" viewBox="0 0 16 16">
+                                            <path fill-rule="evenodd" d="M10.854 7.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 9.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                                            <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                                            <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                                        </svg>
+                                    </div>
+                                    <h5 class="card-title">My Enrollments</h5>
+                                    <p class="card-text text-muted">View and manage your course enrollments</p>
+                                    <a href="/enrollments" class="btn btn-success">View Enrollments</a>
+                                </div>
+                            </div>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView>
+                    <NotAuthorized>
+                        <div class="col-md-6">
+                            <div class="card h-100 shadow-sm border-secondary">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-person-circle text-secondary" viewBox="0 0 16 16">
+                                            <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/>
+                                            <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1z"/>
+                                        </svg>
+                                    </div>
+                                    <h5 class="card-title">Get Started</h5>
+                                    <p class="card-text text-muted">Login or register to enroll in courses</p>
+                                    <div class="d-grid gap-2">
+                                        <a href="/login" class="btn btn-outline-primary">Login</a>
+                                        <a href="/register" class="btn btn-outline-secondary">Register</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+</div>

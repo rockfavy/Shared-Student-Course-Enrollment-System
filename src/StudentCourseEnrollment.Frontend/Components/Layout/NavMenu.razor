@@ -1,0 +1,25 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using StudentCourseEnrollment.Shared
+
+<nav class="navbar-nav">
+    <NavLink href="" Match="NavLinkMatch.All" class="nav-link">
+        Home
+    </NavLink>
+    <NavLink href="courses" Match="NavLinkMatch.Prefix" class="nav-link">
+        Courses
+    </NavLink>
+    <AuthorizeView Roles="@Role.Student.ToString()">
+        <Authorized>
+            <NavLink href="enrollments" Match="NavLinkMatch.Prefix" class="nav-link">
+                My Enrollments
+            </NavLink>
+        </Authorized>
+    </AuthorizeView>
+    <AuthorizeView Roles="@Role.Admin.ToString()">
+        <Authorized>
+            <NavLink href="admin/courses" Match="NavLinkMatch.Prefix" class="nav-link">
+                Course Management
+            </NavLink>
+        </Authorized>
+    </AuthorizeView>
+</nav>

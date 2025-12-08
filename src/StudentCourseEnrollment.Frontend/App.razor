@@ -1,0 +1,84 @@
+@using StudentCourseEnrollment.Frontend.Components
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Reflection
+@using Microsoft.AspNetCore.Components.Web
+
+<ErrorBoundary>
+    <ChildContent>
+        <CascadingAuthenticationState>
+            <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            @if (IsAuthenticationRoute(routeData))
+            {
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            }
+            else if (IsAnonymousRoute(routeData))
+            {
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            }
+            else
+            {
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        @if (context.User.Identity?.IsAuthenticated != true)
+                        {
+                            <RedirectToLogin />
+                        }
+                        else
+                        {
+                            <p role="alert">You are not authorized to access this resource.</p>
+                        }
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+            }
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+        </CascadingAuthenticationState>
+    </ChildContent>
+    <ErrorContent>
+        <div class="container mt-5">
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">An error has occurred</h4>
+                <p>Something went wrong while loading the application. Please try refreshing the page.</p>
+                <hr>
+                <p class="mb-0">
+                    <button class="btn btn-primary" @onclick="() => ErrorBoundary?.Recover()">Reload</button>
+                </p>
+            </div>
+        </div>
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    private ErrorBoundary? ErrorBoundary { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        ErrorBoundary?.Recover();
+    }
+
+    private bool IsAnonymousRoute(RouteData routeData)
+    {
+        if (routeData?.PageType == null)
+            return false;
+
+        return routeData.PageType.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Any();
+    }
+
+    private bool IsAuthenticationRoute(RouteData routeData)
+    {
+        if (routeData?.RouteValues == null)
+            return false;
+
+        var route = routeData.RouteValues.TryGetValue("page", out var page) ? page?.ToString() : null;
+        return route != null && route.StartsWith("/authentication/", StringComparison.OrdinalIgnoreCase);
+    }
+}
