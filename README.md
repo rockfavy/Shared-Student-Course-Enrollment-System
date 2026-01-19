@@ -179,6 +179,6 @@ Include your name, email address, and the reason for requesting access.
 
 ---
 
-## License
 
-[Add license information here if applicable]
+
+
